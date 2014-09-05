@@ -5,10 +5,13 @@ This module enables Janrain integration for your Lift site.
 ## Using this module
 
 1. Include the dependency:
+
 	```
    "net.liftmodules" %% "janrain_3.0" % "0.1-SNAPSHOT"
 	```
+
 2. Implement `net.liftmodules.janrain.JanrainUser` for your user model, what follows is an example implementation for a MongoAuth user (using rogue):
+
 	```scala
 	object MongoAuthJanrain extends JanrainUser {
 	  def loginOrRegisterUser(userData: SigninResponse) = {
@@ -31,11 +34,16 @@ This module enables Janrain integration for your Lift site.
 	  }
 	}
 	```
+
 3. Call `net.liftmodules.janrain.Janrain.init` in `Boot.scala` with the implementing object as the parameter eg:
+
    	`Janrain.init(MongoAuthJanrain)`
+
 4. Add the following to `src/main/resources/props/default.props` (and other props files) to configure your API key and janrain application name:
+
 	```
 	janrain.apikey=XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 	janrain.appname=app.name.com
 	```
+
 5. Add `<div id="janrainEngageEmbed"></div>` to your template.
