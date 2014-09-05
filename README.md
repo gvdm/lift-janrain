@@ -6,12 +6,15 @@ This module enables Janrain integration for your Lift site.
 
 1. Include the dependency:
 
+```
    "net.liftmodules" %% "janrain_3.0" % "0.1-SNAPSHOT"
+```
 
-2. Implement net.liftmodules.janrain.JanrainUser for your user model:
+2. Implement `net.liftmodules.janrain.JanrainUser` for your user model:
 
    An example implementation for a MongoAuth user
 
+```scala
    object MongoAuthJanrain extends JanrainUser {
       def loginOrRegisterUser(userData: SigninResponse) = {
         val userOption: Option[User] = (User where ((u: User) => u.externId eqs userData.profile.identifier) fetch ()).headOption
@@ -31,10 +34,11 @@ This module enables Janrain integration for your Lift site.
 	}
       }
    }
+```
 
-3. Call net.liftmodules.janrain.Janrain.init in Boot.scala with the implementing object as the parameter eg:
+3. Call `net.liftmodules.janrain.Janrain.init` in `Boot.scala` with the implementing object as the parameter eg:
 
-   	Janrain.init(MongoAuthJanrain)
+   	`Janrain.init(MongoAuthJanrain)`
 
-4. Add <div id="janrainEngageEmbed"></div> to your template.
+4. Add `<div id="janrainEngageEmbed"></div>` to your template.
 
