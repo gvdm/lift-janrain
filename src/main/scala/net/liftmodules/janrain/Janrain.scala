@@ -3,9 +3,7 @@ package net.liftmodules.janrain
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
-
 import scala.xml.Unparsed
-
 import net.liftweb.common.Box
 import net.liftweb.http.LiftRules
 import net.liftweb.http.LiftRulesMocker.toLiftRules
@@ -17,6 +15,7 @@ import net.liftweb.http.provider.servlet.HTTPRequestServlet
 import net.liftweb.json.JsonParser.parse
 import net.liftweb.util.Helpers
 import net.liftweb.util.Props
+import net.liftweb.common.Full
 
 object Janrain {
 
@@ -52,14 +51,12 @@ object Janrain {
 }})();
                   </script>
 
-  def init(userImpl: JanrainUser) {
+  def init(authHandler: SigninResponse => Unit) {
     LiftRules.dispatch.append {
       case req @ Req(List("signupr"), _, _) ⇒
         val userData: SigninResponse = getLoggedInUserData(S.param("token").openOr(""))
-        userImpl.loginOrRegisterUser(userData)
-        () ⇒ for (hrs ← Box.asA[HTTPRequestServlet](req.request)) yield {
-          new RedirectResponse("/", null)
-        }
+        authHandler(userData)
+        () => Full(new RedirectResponse("/", null))
     }
     
     def addJs(s: LiftSession, r: Req): Unit = S.putInHead(janrainJS)
@@ -68,7 +65,7 @@ object Janrain {
 
   def getLoggedInUserData(token: String): SigninResponse = {
     val query = Map(
-      "apiKey" -> "a1aee9fd99b07b1b3f43a60f712fb205631b039f",
+      "apiKey" -> apikey,
       "token" -> token
     )
 
@@ -91,10 +88,6 @@ object Janrain {
     userData
   }
 
-}
-
-abstract class JanrainUser {
-  def loginOrRegisterUser(userData: SigninResponse): Unit
 }
 
 case class SigninResponse(stat: String, profile: SigninProfile)
