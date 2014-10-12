@@ -3,8 +3,9 @@ package net.liftmodules.janrain
 import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
+import java.net.URLDecoder
 import scala.xml.Unparsed
-import net.liftweb.common.Box
+import net.liftweb.common._
 import net.liftweb.http.LiftRules
 import net.liftweb.http.LiftRulesMocker.toLiftRules
 import net.liftweb.http.LiftSession
@@ -15,7 +16,6 @@ import net.liftweb.http.provider.servlet.HTTPRequestServlet
 import net.liftweb.json.JsonParser.parse
 import net.liftweb.util.Helpers
 import net.liftweb.util.Props
-import net.liftweb.common.Full
 
 object Janrain {
 
@@ -27,7 +27,7 @@ object Janrain {
    if (typeof window.janrain !== 'object') window.janrain = {{}};
    if (typeof window.janrain.settings !== 'object') window.janrain.settings = {{}};
    
-   janrain.settings.tokenUrl = {Unparsed("'"+S.hostAndPath)}/signupr';
+   janrain.settings.tokenUrl = {Unparsed("'"+S.hostAndPath)}/signupr?dest='+encodeURI(document.URL);
 
     function isReady() {{ janrain.ready = true; }};
    if (document.addEventListener) {{
@@ -53,10 +53,14 @@ object Janrain {
 
   def init(authHandler: SigninResponse => Unit) {
     LiftRules.dispatch.append {
-      case req @ Req(List("signupr"), _, _) ⇒
+      case req @ Req(List("signupr"), _, _) ⇒ {
         val userData: SigninResponse = getLoggedInUserData(S.param("token").openOr(""))
         authHandler(userData)
-        () => Full(new RedirectResponse("/", null))
+        S.param("dest") match {
+          case Empty => () => Full(new RedirectResponse("/", null))
+          case Full(url) => () => Full(new RedirectResponse(URLDecoder.decode(url), null))
+        }
+      }
     }
     
     def addJs(s: LiftSession, r: Req): Unit = S.putInHead(janrainJS)
