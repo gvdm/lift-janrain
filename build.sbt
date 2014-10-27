@@ -2,7 +2,7 @@ name := "janrain"
 
 organization := "net.liftmodules"
 
-version := "0.3-SNAPSHOT"
+version := "0.3"
 
 val liftVersion = "3.0-M2"
 
@@ -23,8 +23,7 @@ resolvers ++= Seq("snapshots"     at "https://oss.sonatype.org/content/repositor
 
 libraryDependencies ++= {
   Seq(
-    "net.liftweb"		%% "lift-webkit"			% liftVersion		% "compile",
-    "org.eclipse.jetty.orbit"	% "javax.servlet"			% "3.0.0.v201112011016" % "compile"
+    "net.liftweb"		%% "lift-webkit"			% liftVersion		% "compile"
   )
 }
 

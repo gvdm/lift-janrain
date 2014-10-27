@@ -6,66 +6,114 @@ import java.net.URL
 import java.net.URLDecoder
 import scala.xml.Unparsed
 import net.liftweb.common._
-import net.liftweb.http.LiftRules
-import net.liftweb.http.LiftRulesMocker.toLiftRules
-import net.liftweb.http.LiftSession
-import net.liftweb.http.RedirectResponse
-import net.liftweb.http.Req
-import net.liftweb.http.S
-import net.liftweb.http.provider.servlet.HTTPRequestServlet
+import net.liftweb.http._
+import net.liftweb.json.Extraction._
 import net.liftweb.json.JsonParser.parse
 import net.liftweb.util.Helpers
 import net.liftweb.util.Props
+import net.liftweb.http.js.JE._
+import net.liftweb.http.js.JsExp
+import net.liftweb.http.js.JsCmds._
+import net.liftweb.http.js.JsCmd
 
 object Janrain {
+
+  implicit val formats = net.liftweb.json.DefaultFormats
 
   val apikey = Props.get("janrain.apikey").openOr("")
   val appName = Props.get("janrain.appname").openOr("")
   
-  def janrainJS = <script type="text/javascript">
-(function() {{
-   if (typeof window.janrain !== 'object') window.janrain = {{}};
-   if (typeof window.janrain.settings !== 'object') window.janrain.settings = {{}};
-   
-   janrain.settings.tokenUrl = {Unparsed("'"+S.hostAndPath)}/signupr?dest='+encodeURI(document.URL);
-
-    function isReady() {{ janrain.ready = true; }};
-   if (document.addEventListener) {{
-     document.addEventListener("DOMContentLoaded", isReady, false);
-   }} else {{
-     window.attachEvent('onload', isReady);
-   }}
-
-    var e = document.createElement('script');
-   e.type = 'text/javascript';
-   e.id = 'janrainAuthWidget';
-
-    if (document.location.protocol === 'https:') {{
-     e.src = 'https://rpxnow.com/js/lib/{Unparsed(appName)}/engage.js';
-   }} else {{
-     e.src = 'http://widget-cdn.rpxnow.com/js/lib/{Unparsed(appName)}/engage.js';
-   }}
-
-    var s = document.getElementsByTagName('script')[0];
-   s.parentNode.insertBefore(e, s);
-}})();
-                  </script>
-
-  def init(authHandler: SigninResponse => Unit) {
+  var clientSide = false
+  
+  def init (authHandler: SigninResponse => Box[LiftResponse]): Unit = {
+    
     LiftRules.dispatch.append {
-      case req @ Req(List("signupr"), _, _) ⇒ {
+      // server side callback
+      case req @ Req(List("liftmodule", "janrain", "signupr"), _, _) ⇒ {
         val userData: SigninResponse = getLoggedInUserData(S.param("token").openOr(""))
-        authHandler(userData)
-        S.param("dest") match {
-          case Empty => () => Full(new RedirectResponse("/", null))
-          case Full(url) => () => Full(new RedirectResponse(URLDecoder.decode(url), null))
+        val userSignResponse = authHandler(userData)
+        userSignResponse match {
+          case Empty => S.param("page") match {
+            case Full(url) => () => Full(new RedirectResponse(URLDecoder.decode(url, "UTF-8"), null))
+            case _ => () => Full(new RedirectResponse("/", null))
+          }
+          case response => () => response
         }
       }
     }
     
-    def addJs(s: LiftSession, r: Req): Unit = S.putInHead(janrainJS)
+    
     LiftSession.onBeginServicing = addJs _ :: LiftSession.onBeginServicing
   }
+  
+  def init(authHandler: SigninResponse => Unit, siteLoginAction: () => JsCmd, ajaxLoginAction: AnonFunc = AnonFunc(JsReturn(false))): Unit = {
+
+    LiftRules.dispatch.append {
+      // client side ajax callback
+      case req @ Req(List("liftmodule", "janrain", "engage_callback_url"), _, PostRequest) ⇒ {
+        val userData: SigninResponse = getLoggedInUserData(S.param("token").openOr(""))
+        authHandler(userData)
+        () => Full(JsonResponse(decompose(userData)))
+      }
+      // run some code on the client side after having logged in
+      case req @ Req(List("liftmodule", "janrain", "login_complete"), _, _) ⇒ {
+        () => Full(JavaScriptResponse(siteLoginAction()))
+      }
+    }
+    
+    def clientSideJS(s: LiftSession, r: Req): Unit = S.putInHead(
+<script type="text/javascript">
+function janrainWidgetOnload() {{
+  janrain.events.onProviderLoginToken.addHandler(function(response) {{
+    $.ajax({{
+      type: "POST",
+      url: "/liftmodule/janrain/engage_callback_url",
+      data: "token=" + response.token,
+      success: { ajaxLoginAction.toJsCmd },
+      complete: function() {{ $.ajax({{
+                  url: "/liftmodule/janrain/login_complete",
+                  success: function(response) {{ eval(response); }}
+                }}) }}
+    }});
+  }});
+}};
+</script>)
+    
+    clientSide = true
+    LiftSession.onBeginServicing = clientSideJS _ :: addJs _ :: LiftSession.onBeginServicing
+  }
+  
+  def addJs(s: LiftSession, r: Req): Unit = S.putInHead(janrainJS())
+  
+  def janrainJS() = <script type="text/javascript">
+(function() {{
+  if (typeof window.janrain !== 'object') window.janrain = {{}};
+  if (typeof window.janrain.settings !== 'object') window.janrain.settings = {{}};
+   
+  janrain.settings.tokenUrl = { if (clientSide) Unparsed("'"+S.hostAndPath+"/liftmodule/janrain/engage_callback_url'; janrain.settings.tokenAction = 'event';")
+    else Unparsed("'"+S.hostAndPath+"/liftmodule/janrain/signupr?page='+encodeURI(document.URL);") }
+
+    function isReady() {{ janrain.ready = true; }};
+      if (document.addEventListener) {{
+        document.addEventListener("DOMContentLoaded", isReady, false);
+      }} else {{
+        window.attachEvent('onload', isReady);
+    }}
+
+    var e = document.createElement('script');
+    e.type = 'text/javascript';
+    e.id = 'janrainAuthWidget';
+
+    if (document.location.protocol === 'https:') {{
+      e.src = 'https://rpxnow.com/js/lib/{Unparsed(appName)}/engage.js';
+    }} else {{
+      e.src = 'http://widget-cdn.rpxnow.com/js/lib/{Unparsed(appName)}/engage.js';
+    }}
+
+    var s = document.getElementsByTagName('script')[0];
+    s.parentNode.insertBefore(e, s);
+}})();
+</script>
 
   def getLoggedInUserData(token: String): SigninResponse = {
     val query = Map(
@@ -86,7 +134,6 @@ object Janrain {
 
     val response = new String(Helpers.readWholeStream(conn.getInputStream()))
 
-    implicit val formats = net.liftweb.json.DefaultFormats //need this for extract to work
     val userData: SigninResponse = parse(response).extract[SigninResponse]
 
     userData
