@@ -42,7 +42,6 @@ object Janrain {
       }
     }
     
-    
     LiftSession.onBeginServicing = addJs _ :: LiftSession.onBeginServicing
   }
   
@@ -55,13 +54,11 @@ object Janrain {
         authHandler(userData)
         () => Full(JsonResponse(decompose(userData)))
       }
-      // run some code on the client side after having logged in
-      case req @ Req(List("liftmodule", "janrain", "login_complete"), _, _) ⇒ {
-        () => Full(JavaScriptResponse(siteLoginAction()))
-      }
     }
     
-    def clientSideJS(s: LiftSession, r: Req): Unit = S.putInHead(
+    def clientSideJS(s: LiftSession, r: Req): Unit = {
+      S.fmapFunc(() => JavaScriptResponse(siteLoginAction())) { funcName => 
+      S.putInHead(
 <script type="text/javascript">
 function janrainWidgetOnload() {{
   janrain.events.onProviderLoginToken.addHandler(function(response) {{
@@ -70,14 +67,11 @@ function janrainWidgetOnload() {{
       url: "/liftmodule/janrain/engage_callback_url",
       data: "token=" + response.token,
       success: { ajaxLoginAction.toJsCmd },
-      complete: function() {{ $.ajax({{
-                  url: "/liftmodule/janrain/login_complete",
-                  success: function(response) {{ eval(response); }}
-                }}) }}
+      complete: function() {{  lift.ajax("{funcName}=_"); }}
     }});
   }});
 }};
-</script>)
+</script>)}}
     
     clientSide = true
     LiftSession.onBeginServicing = clientSideJS _ :: addJs _ :: LiftSession.onBeginServicing
