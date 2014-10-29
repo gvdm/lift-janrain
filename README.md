@@ -7,15 +7,15 @@ This module enables Janrain integration for your Lift site.
 1. Include the dependency:
 
 	```
-   "net.liftmodules" %% "janrain_3.0" % "0.3"
+   "net.liftmodules" %% "janrain_3.0" % "0.5"
 	```
 
    Currently this module is built and published locally for inclusion in your project. Change the Lift and Scala versions as you see fit.
 
-2. Implement a function of type `SignInResponse => Unit` (for client side authentication - http://developers.janrain.com/how-to/social-login/deploy-social-login/client-side-authentication/ ) or of type `SignInResponse => Box[LiftResponse]` (for server side authentication) in your user meta model. What follows is an example implementation for a MongoAuth user (using rogue):
+2. Implement a function of type `SignInResponse => JsCmd` (for client side authentication - http://developers.janrain.com/how-to/social-login/deploy-social-login/client-side-authentication/ ) or of type `SignInResponse => Box[LiftResponse]` (for server side authentication) in your user meta model. What follows is an example implementation for a MongoAuth user (using rogue):
 
 	```scala
-	def loginOrRegisterUser(userData: SigninResponse): Unit = {
+	def loginOrRegisterUser(userData: SigninResponse): JsCmd = {
 	  val userOption: Option[User] =
 	    (User where ((u: User) =>
 	      u.externId eqs userData.profile.identifier) fetch ()).headOption
@@ -34,6 +34,7 @@ This module enables Janrain integration for your Lift site.
 	    save()
 	
 	  User.logUserIn(user, true, true) //set user in the session
+	  Alert("Hello "+userData.profile.name.givenName)
 	}
 	```
 	
@@ -58,7 +59,7 @@ This module enables Janrain integration for your Lift site.
           }
 	```
 
-3. Call `net.liftmodules.janrain.Janrain.init` in `Boot.scala` with the implementing function as the parameter which is simply (for example) `Janrain.init(User.loginOrRegisterUser(_))` for server side authentication or `Janrain.init(User.loginOrRegisterUser _, () => (Alert("login complete")), AnonFunc("res", JsRaw("alert('Welcome '+res.profile.displayName)")))`. The two extra parameters of `siteLoginAction: () => JsCmd` and `ajaxLoginAction: AnonFunc` are added into callbacks within the Janrain client side authentication process. The `ajaxLoginAction` is run on the success of the POSTback to `"/liftmodule/janrain/engage_callback_url"` within `janrain.events.onProviderLoginToken` and is a function taking one parameter which is a JSON array with user data returned from Janrain. The `siteLoginAction` is a JsCmd which is generated on the server after the login process has finished. This can, for example, update the user panel showing logged in details and rerender bits of the page that now show action the user can now take once logged in and so forth.
+3. Call `net.liftmodules.janrain.Janrain.init` in `Boot.scala` with the implementing function as the parameter, eg: `Janrain.init(User.loginOrRegisterUser _)`.
 
 4. Add the following to `src/main/resources/props/default.props` (and other props files) to configure your API key and janrain application name:
 

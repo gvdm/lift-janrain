@@ -2,7 +2,7 @@ name := "janrain"
 
 organization := "net.liftmodules"
 
-version := "0.4"
+version := "0.5"
 
 val liftVersion = "3.0-M2"
 

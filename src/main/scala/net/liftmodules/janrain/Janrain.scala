@@ -15,8 +15,15 @@ import net.liftweb.http.js.JE._
 import net.liftweb.http.js.JsExp
 import net.liftweb.http.js.JsCmds._
 import net.liftweb.http.js.JsCmd
+import scala.language.implicitConversions
 
 object Janrain {
+  
+  case class ServerSideLogin(loginProcess: SigninResponse => Box[LiftResponse])
+  case class ClientSideLogin(loginProcess: SigninResponse => JsCmd)
+  
+  implicit def serverSideLogin(loginProcess: SigninResponse => Box[LiftResponse]) = ServerSideLogin(loginProcess)
+  implicit def clientSideLogin(loginProcess: SigninResponse => JsCmd) = ClientSideLogin(loginProcess)
 
   implicit val formats = net.liftweb.json.DefaultFormats
 
@@ -25,13 +32,13 @@ object Janrain {
   
   var clientSide = false
   
-  def init (authHandler: SigninResponse => Box[LiftResponse]): Unit = {
+  def init (authHandler: ServerSideLogin): Unit = {
     
     LiftRules.dispatch.append {
       // server side callback
       case req @ Req(List("liftmodule", "janrain", "signupr"), _, _) ⇒ {
         val userData: SigninResponse = getLoggedInUserData(S.param("token").openOr(""))
-        val userSignResponse = authHandler(userData)
+        val userSignResponse = authHandler.loginProcess(userData)
         userSignResponse match {
           case Empty => S.param("page") match {
             case Full(url) => () => Full(new RedirectResponse(URLDecoder.decode(url, "UTF-8"), null))
@@ -45,33 +52,21 @@ object Janrain {
     LiftSession.onBeginServicing = addJs _ :: LiftSession.onBeginServicing
   }
   
-  def init(authHandler: SigninResponse => Unit, siteLoginAction: () => JsCmd, ajaxLoginAction: AnonFunc = AnonFunc(JsReturn(false))): Unit = {
-
-    LiftRules.dispatch.append {
-      // client side ajax callback
-      case req @ Req(List("liftmodule", "janrain", "engage_callback_url"), _, PostRequest) ⇒ {
-        val userData: SigninResponse = getLoggedInUserData(S.param("token").openOr(""))
-        authHandler(userData)
-        () => Full(JsonResponse(decompose(userData)))
-      }
+  def init(authHandler: ClientSideLogin): Unit = {
+    
+    def ajaxSignin(token: String): JsCmd = {
+      val userData: SigninResponse = getLoggedInUserData(token)
+      authHandler.loginProcess(userData)
     }
     
-    def clientSideJS(s: LiftSession, r: Req): Unit = {
-      S.fmapFunc(() => JavaScriptResponse(siteLoginAction())) { funcName => 
-      S.putInHead(
+    def clientSideJS(s: LiftSession, r: Req): Unit = S.putInHead(
 <script type="text/javascript">
 function janrainWidgetOnload() {{
   janrain.events.onProviderLoginToken.addHandler(function(response) {{
-    $.ajax({{
-      type: "POST",
-      url: "/liftmodule/janrain/engage_callback_url",
-      data: "token=" + response.token,
-      success: { ajaxLoginAction.toJsCmd },
-      complete: function() {{  lift.ajax("{funcName}=_"); }}
-    }});
+    { SHtml.ajaxCall(JsVar("response.token"), ajaxSignin(_)).toJsCmd }
   }});
 }};
-</script>)}}
+</script>)
     
     clientSide = true
     LiftSession.onBeginServicing = clientSideJS _ :: addJs _ :: LiftSession.onBeginServicing
@@ -84,8 +79,8 @@ function janrainWidgetOnload() {{
   if (typeof window.janrain !== 'object') window.janrain = {{}};
   if (typeof window.janrain.settings !== 'object') window.janrain.settings = {{}};
    
-  janrain.settings.tokenUrl = { if (clientSide) Unparsed("'"+S.hostAndPath+"/liftmodule/janrain/engage_callback_url'; janrain.settings.tokenAction = 'event';")
-    else Unparsed("'"+S.hostAndPath+"/liftmodule/janrain/signupr?page='+encodeURI(document.URL);") }
+  { if (clientSide) Unparsed("janrain.settings.tokenAction = 'event';")
+    else Unparsed("janrain.settings.tokenUrl = '"+S.hostAndPath+"/liftmodule/janrain/signupr?page='+encodeURI(document.URL);") }
 
     function isReady() {{ janrain.ready = true; }};
       if (document.addEventListener) {{
@@ -127,7 +122,7 @@ function janrainWidgetOnload() {{
     osw.close()
 
     val response = new String(Helpers.readWholeStream(conn.getInputStream()))
-
+    
     val userData: SigninResponse = parse(response).extract[SigninResponse]
 
     userData
