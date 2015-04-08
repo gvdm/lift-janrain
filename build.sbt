@@ -2,9 +2,9 @@ name := "janrain"
 
 organization := "net.liftmodules"
 
-version := "0.5"
+version := "0.6"
 
-val liftVersion = "3.0-M2"
+val liftVersion = "3.0-M5"
 
 val liftEdition = liftVersion.substring(0,3)
 

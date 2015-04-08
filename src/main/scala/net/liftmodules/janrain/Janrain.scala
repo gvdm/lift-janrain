@@ -4,18 +4,19 @@ import java.io.OutputStreamWriter
 import java.net.HttpURLConnection
 import java.net.URL
 import java.net.URLDecoder
-import scala.xml.Unparsed
+
 import net.liftweb.common._
 import net.liftweb.http._
 import net.liftweb.json.Extraction._
 import net.liftweb.json.JsonParser.parse
 import net.liftweb.util.Helpers
 import net.liftweb.util.Props
-import net.liftweb.http.js.JE._
-import net.liftweb.http.js.JsExp
+import net.liftweb.http.js.JE.JsVar
 import net.liftweb.http.js.JsCmds._
 import net.liftweb.http.js.JsCmd
+
 import scala.language.implicitConversions
+import scala.xml.Unparsed
 
 object Janrain {
   
@@ -79,6 +80,7 @@ function janrainWidgetOnload() {{
   if (typeof window.janrain !== 'object') window.janrain = {{}};
   if (typeof window.janrain.settings !== 'object') window.janrain.settings = {{}};
    
+  janrain.settings.appUrl = 'https://{Unparsed(appName)}';
   { if (clientSide) Unparsed("janrain.settings.tokenAction = 'event';")
     else Unparsed("janrain.settings.tokenUrl = '"+S.hostAndPath+"/liftmodule/janrain/signupr?page='+encodeURI(document.URL);") }
 
