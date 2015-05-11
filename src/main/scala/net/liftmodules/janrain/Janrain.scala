@@ -132,6 +132,7 @@ function janrainWidgetOnload() {{
 
 }
 
+//TODO: completely specify all possible JSON responses from all the different providers
 case class SigninResponse(stat: String, profile: SigninProfile)
-case class SigninProfile(email: String, providerName: String, identifier: String, name: SigninName, displayName: String)
-case class SigninName(formatted: String, givenName: String, familyName: String)
+case class SigninProfile(email: Option[String], providerName: String, identifier: String, name: Option[SigninName], displayName: Option[String])
+case class SigninName(formatted: Option[String], givenName: Option[String], familyName: Option[String])
